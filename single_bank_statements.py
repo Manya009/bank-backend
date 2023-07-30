@@ -22,7 +22,7 @@ from reportlab.lib.pagesizes import letter
 pd.options.display.float_format = "{:,.2f}".format
 
 
-class MultipleBankStatementConverter:
+class SingleBankStatementConverter:
     def __init__(self, bank_names, pdf_paths, pdf_passwords, start_date, end_date, account_number, file_name):
         self.writer = None
         self.bank_names = bank_names
@@ -169,7 +169,8 @@ class MultipleBankStatementConverter:
         return output_pdf_path
 
     def check_date(self, df):
-        if pd.to_datetime(df['Value Date'].iloc[-1], dayfirst=True) < pd.to_datetime(df['Value Date'].iloc[0], dayfirst=True):
+        if pd.to_datetime(df['Value Date'].iloc[-1], dayfirst=True) < pd.to_datetime(df['Value Date'].iloc[0],
+                                                                                     dayfirst=True):
             new_df = df[::-1].reset_index(drop=True)
         else:
             new_df = df.copy()  # No reversal required
@@ -972,6 +973,7 @@ class MultipleBankStatementConverter:
         return listO
 
     def extraction_process(self, bank, pdf_path, pdf_password, start_date, end_date):
+        bank = re.sub(r'\d+', '', bank)
         unlocked_pdf_path = self.unlock_the_pdfs_path(pdf_path, pdf_password)
         print(unlocked_pdf_path)
         text = self.extract_text_from_pdf(unlocked_pdf_path)
@@ -1043,9 +1045,9 @@ class MultipleBankStatementConverter:
 
         df = df.reset_index(drop=True)
 
-        if df['Value Date'].iloc[0] != start_date and df['Value Date'].iloc[-1] != end_date:
-            print("--------@@@@@@@@@@@@@@-----------------------@@@@@@@@@@@@@@-------------")
-            raise ValueError("The Start and End Dates provided by the user do not match ...")
+        # if df['Value Date'].iloc[0] != start_date and df['Value Date'].iloc[-1] != end_date:
+        #     print("--------@@@@@@@@@@@@@@-----------------------@@@@@@@@@@@@@@-------------")
+        #     raise ValueError("The Start and End Dates provided by the user do not match ...")
 
         return df, acc_name_n_number
 
@@ -1766,7 +1768,7 @@ class MultipleBankStatementConverter:
                 idf.at[index, 'Balance'] = idf.at[index - 1, 'Balance']
         return idf
 
-    def Multiple_Bank_statement(self, dfs, name_dfs):
+    def Single_Bank_statement(self, dfs, name_dfs):
         data = []
         for key, value in name_dfs.items():
             bank_name = key
@@ -1775,8 +1777,10 @@ class MultipleBankStatementConverter:
             data.append([acc_num, acc_name, bank_name])
 
         name_n_num_df = pd.DataFrame(data, columns=['Account Number', 'Account Name', 'Bank'])
-
         num_pairs = len(pd.Series(dfs).to_dict())
+
+        # print(dfs.values())
+
         concatenated_df = pd.concat(list(dfs.values()))
         concatenated_df = concatenated_df.fillna('')
         concatenated_df['Value Date'] = pd.to_datetime(concatenated_df['Value Date'], format='%d-%m-%Y',
@@ -1784,7 +1788,9 @@ class MultipleBankStatementConverter:
         concatenated_df['Month'] = concatenated_df['Value Date'].dt.strftime('%b-%Y')
         concatenated_df['Date'] = concatenated_df['Value Date'].dt.day
         # df = concatenated_df.sort_values(by='Value Date',  ascending=True).reset_index(drop=True)
+        concatenated_df.drop_duplicates(keep='first', inplace=True)
         df = concatenated_df.reset_index(drop=True)
+
         old_transaction_sheet_df = self.category_add(df)
         transaction_sheet_df = self.process_transaction_sheet_df(old_transaction_sheet_df)
         excel_transaction_sheet_df = old_transaction_sheet_df[
@@ -1817,48 +1823,47 @@ class MultipleBankStatementConverter:
         summary_df_list[4].to_excel(self.writer, sheet_name=sheet_name,
                                     startrow=name_n_num_df.shape[0] + summary_df_list[0].shape[0] +
                                              summary_df_list[1].shape[0] +
-                                             summary_df_list[2].shape[0] + summary_df_list[3].shape[0] + 10, index=False)
+                                             summary_df_list[2].shape[0] + summary_df_list[3].shape[0] + 10,
+                                    index=False)
         if num_pairs > 1:
             excel_transaction_sheet_df.to_excel(self.writer, sheet_name='Combined Transaction', index=False)
             eod_sheet_df.to_excel(self.writer, sheet_name='Combined EOD Balance', index=False)
-
-        # -----------------------------------------------------------------------#
-        sheets_oNc_list = []
-        for key, value in dfs.items():
-            bank_name = key
-            df = pd.DataFrame(value)
-            df = df.fillna('')
-            # Convert 'Value Date' column to datetime format
-            df['Value Date'] = pd.to_datetime(df['Value Date'], format='%d-%m-%Y', errors='coerce')
-            df['Month'] = df['Value Date'].dt.strftime('%b-%Y')
-            df['Date'] = df['Value Date'].dt.day
-            df = df.reset_index(drop=True)
-            old_transaction_sheet_df = self.category_add(df)
-            transaction_sheet_df = self.process_transaction_sheet_df(old_transaction_sheet_df)
-            excel_transaction_sheet_df = old_transaction_sheet_df[
-                ['Value Date', 'Description', 'Debit', 'Credit', 'Balance', 'Category', 'Bank']]
-            excel_transaction_sheet_df.to_excel(self.writer, sheet_name=f'{bank_name} Transaction', index=False)
-            eod_sheet_df = self.eod(transaction_sheet_df)
-            eod_sheet_df.to_excel(self.writer, sheet_name=f'{bank_name} EOD Balance', index=False)
-            # #opening & closing balance
-            eod_sheet_df_2 = eod_sheet_df.iloc[:-2]
-            opening_bal = eod_sheet_df_2.iloc[0, 1:].to_dict()
-            closing_bal = {}
-            for column in eod_sheet_df_2.columns[1:]:
-                non_zero_rows = eod_sheet_df_2.loc[eod_sheet_df_2[column] != 0]
-                if len(non_zero_rows) > 0:
-                    last_non_zero_row = non_zero_rows.iloc[-1]
-                    closing_bal[column] = last_non_zero_row[column]
-            sheet_1 = pd.DataFrame([opening_bal, closing_bal])
-            sheet_1.insert(0, bank_name, ["Opening Balance", "Closing Balance"])
-            sheet_1['Total'] = sheet_1.iloc[:, 1:].sum(axis=1)
-            sheets_oNc_list.append(sheet_1)
-        sheet_name = "Opening and Closing Balance"  # summary joining
-        start_row = 0
-        for sheet in sheets_oNc_list:
-            sheet.to_excel(self.writer, sheet_name=sheet_name, startrow=start_row, index=False)
-            start_row += sheet.shape[0] + 2
-        # -----------------------------------------------------------------------#
+        else:
+            sheets_oNc_list = []
+            for key, value in dfs.items():
+                bank_name = key
+                df = pd.DataFrame(value)
+                df = df.fillna('')
+                # Convert 'Value Date' column to datetime format
+                df['Value Date'] = pd.to_datetime(df['Value Date'], format='%d-%m-%Y', errors='coerce')
+                df['Month'] = df['Value Date'].dt.strftime('%b-%Y')
+                df['Date'] = df['Value Date'].dt.day
+                df = df.reset_index(drop=True)
+                old_transaction_sheet_df = self.category_add(df)
+                transaction_sheet_df = self.process_transaction_sheet_df(old_transaction_sheet_df)
+                excel_transaction_sheet_df = old_transaction_sheet_df[
+                    ['Value Date', 'Description', 'Debit', 'Credit', 'Balance', 'Category', 'Bank']]
+                excel_transaction_sheet_df.to_excel(self.writer, sheet_name=f'{bank_name} Transaction', index=False)
+                eod_sheet_df = self.eod(transaction_sheet_df)
+                eod_sheet_df.to_excel(self.writer, sheet_name=f'{bank_name} EOD Balance', index=False)
+                # #opening & closing balance
+                eod_sheet_df_2 = eod_sheet_df.iloc[:-2]
+                opening_bal = eod_sheet_df_2.iloc[0, 1:].to_dict()
+                closing_bal = {}
+                for column in eod_sheet_df_2.columns[1:]:
+                    non_zero_rows = eod_sheet_df_2.loc[eod_sheet_df_2[column] != 0]
+                    if len(non_zero_rows) > 0:
+                        last_non_zero_row = non_zero_rows.iloc[-1]
+                        closing_bal[column] = last_non_zero_row[column]
+                sheet_1 = pd.DataFrame([opening_bal, closing_bal])
+                sheet_1.insert(0, bank_name, ["Opening Balance", "Closing Balance"])
+                sheet_1['Total'] = sheet_1.iloc[:, 1:].sum(axis=1)
+                sheets_oNc_list.append(sheet_1)
+                # sheet_name = "Opening and Closing Balance"  # summary joining
+                # start_row = 0
+                # for sheet in sheets_oNc_list:
+                #     sheet.to_excel(self.writer, sheet_name=sheet_name, startrow=start_row, index=False)
+                #     start_row += sheet.shape[0] + 2
 
         investment_df = self.total_investment(
             transaction_sheet_df[['Value Date', 'Description', 'Debit', 'Credit', 'Balance', 'Category', 'Bank']])
@@ -1896,6 +1901,7 @@ class MultipleBankStatementConverter:
         name_dfs = {}
         i = 0
         for bank in self.bank_names:
+            bank = str(f"{bank}{i}")
             pdf_path = self.pdf_paths[i]
             pdf_password = self.pdf_passwords[i]
             start_date = self.start_date[i]
@@ -1906,10 +1912,10 @@ class MultipleBankStatementConverter:
         print(self.account_number)
         print('|------------------------------|')
         # file_name = os.path.join('Excel_Files', f'BankStatement_{self.account_number}.xlsx')
-        file_name = "saved_excel/Multiple_Extracted_statements_file.xlsx"
+        file_name = "saved_excel/Single_Extracted_statements_file.xlsx"
         self.writer = pd.ExcelWriter(file_name, engine='xlsxwriter')
 
-        self.Multiple_Bank_statement(dfs, name_dfs)
+        self.Single_Bank_statement(dfs, name_dfs)
         self.writer._save()
 
         # self.extract_text_from_pdf('sbi.pdf')
@@ -1919,15 +1925,17 @@ class MultipleBankStatementConverter:
 # "Axis": "IDBI": "SBI": "IDFC": "PNB": "Yes Bank": "Kotak": "Union":
 # "ICICI": "BOB": "IndusInd": "Indian": "TJSB": "NKGSB": "HDFC"
 
-bank_names = ["SBI", "Axis", "IDFC"]
+bank_names = ["SBI", "SBI", "SBI", "SBI", "SBI", "SBI"]
 # pdf_paths = ["findaddy/banks/BankState.pdf"]
-pdf_paths = ["bank_pdfs/SBI bank Mukund Arun Dabir pdf.pdf", "bank_pdfs/Axis bank AC statement.pdf", "bank_pdfs/idfcbank.pdf"]
-passwords = ["", "", ""]
+pdf_paths = ["bank_pdfs/sbi_month_wise/sbi_1.pdf", "bank_pdfs/sbi_month_wise/sbi_2.pdf",
+             "bank_pdfs/sbi_month_wise/sbi_3.pdf","bank_pdfs/sbi_month_wise/sbi_4.pdf",
+             "bank_pdfs/sbi_month_wise/sbi_5.pdf","bank_pdfs/sbi_month_wise/sbi_6.pdf"]
+passwords = ["", "", "", "", "", ""]
 # dates should be in the format dd-mm-yy
-start_date = ["05-04-2022","04-04-2022","03-02-2021"]
-end_date = ["30-03-2023","31-03-2023","10-03-2021"]
-converter = MultipleBankStatementConverter(bank_names, pdf_paths, passwords, start_date, end_date, '00000037039495417',
-                                           'test.py')
+start_date = ["", "", "", "", "", ""]
+end_date = ["", "", "", "", "", ""]
+converter = SingleBankStatementConverter(bank_names, pdf_paths, passwords, start_date, end_date, '00000037039495417',
+                                         'test.py')
 converter.start_extraction()
 
 # !!!!add!!!!!!!!!!
