@@ -176,6 +176,28 @@ class SingleBankStatementConverter:
             new_df = df.copy()  # No reversal required
         return new_df
 
+
+    def check_balance(self, df):
+        df.loc[:, 'Debit'] = pd.to_numeric(df['Debit'], errors='coerce')  # Convert 'Debit' column to numeric
+        df.loc[:, 'Credit'] = pd.to_numeric(df['Credit'], errors='coerce')  # Convert 'Credit' column to numeric
+        df.loc[:, 'Balance'] = pd.to_numeric(df['Balance'], errors='coerce')  # Convert 'Balance' column to numeric
+
+        prev_balance = df['Balance'].iloc[0]
+        for index, row in df.iloc[1:].iterrows():
+            current_balance = row['Balance']
+            if row['Debit'] > 0 and prev_balance > 0:
+                calculated_balance = prev_balance - row['Debit']
+                if round(calculated_balance, 2) != round(current_balance, 2):
+                    raise ValueError(f"Error at row {index}: Calculated balance ({calculated_balance}) "
+                                     f"doesn't match current balance ({current_balance}) and Error at row DEBIT{row['Debit']} between {row['Value Date']} ")
+            elif row['Credit'] > 0 and prev_balance > 0:
+                calculated_balance = prev_balance + row['Credit']
+                if round(calculated_balance, 2) != round(current_balance, 2):
+                    raise ValueError(f"Error at row {index}: Calculated balance ({calculated_balance}) "
+                                     f"doesn't match current balance ({current_balance}) and Error at row CREDIT{row['Credit']} between {row['Value Date']} ")
+            prev_balance = current_balance
+        return df
+
     def extract_the_df(self, idf):
         balance_row_index = idf[idf.apply(lambda row: 'balance' in ' '.join(row.astype(str)).lower(), axis=1)].index
 
@@ -1768,6 +1790,7 @@ class SingleBankStatementConverter:
                 idf.at[index, 'Balance'] = idf.at[index - 1, 'Balance']
         return idf
 
+
     def Single_Bank_statement(self, dfs, name_dfs):
         data = []
         for key, value in name_dfs.items():
@@ -1793,8 +1816,11 @@ class SingleBankStatementConverter:
 
         old_transaction_sheet_df = self.category_add(df)
         transaction_sheet_df = self.process_transaction_sheet_df(old_transaction_sheet_df)
-        excel_transaction_sheet_df = old_transaction_sheet_df[
+        old_excel_transaction_sheet_df = old_transaction_sheet_df[
             ['Value Date', 'Description', 'Debit', 'Credit', 'Balance', 'Category', 'Bank']]
+
+        excel_transaction_sheet_df = self.check_balance(old_excel_transaction_sheet_df)
+
         eod_sheet_df = self.eod(transaction_sheet_df)
         # #opening & closing balance
         opening_bal = eod_sheet_df.iloc[0, 1:].to_dict()
