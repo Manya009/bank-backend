@@ -851,7 +851,7 @@ class SingleBankStatementConverter:
 
     def find_names_and_account_numbers_idbi(self, text):
         name_pattern = re.compile(r': (.*)', re.IGNORECASE)
-        account_number_pattern = re.compile(r'account number (\d+)', re.IGNORECASE)
+        account_number_pattern = re.compile(r'A/C NO: (\d+)', re.IGNORECASE)
         names = name_pattern.findall(text)
         account_numbers = account_number_pattern.findall(text)
         if not names:
@@ -1797,7 +1797,11 @@ class SingleBankStatementConverter:
             bank_name = key
             acc_name = value[0]
             acc_num = value[1]
-            data.append([acc_num, acc_name, bank_name])
+            if acc_num == "None":
+                masked_acc_num = "None"
+            else:
+                masked_acc_num = "X" * (len(acc_num) - 4) + acc_num[-4:]
+            data.append([masked_acc_num, acc_name, bank_name])
 
         name_n_num_df = pd.DataFrame(data, columns=['Account Number', 'Account Name', 'Bank'])
         num_pairs = len(pd.Series(dfs).to_dict())
@@ -1951,19 +1955,28 @@ class SingleBankStatementConverter:
 # "Axis": "IDBI": "SBI": "IDFC": "PNB": "Yes Bank": "Kotak": "Union":
 # "ICICI": "BOB": "IndusInd": "Indian": "TJSB": "NKGSB": "HDFC"
 
-bank_names = ["SBI", "SBI", "SBI", "SBI", "SBI", "SBI"]
+# bank_names = ["SBI", "SBI", "SBI", "SBI", "SBI", "SBI"]
+# # pdf_paths = ["findaddy/banks/BankState.pdf"]
+# pdf_paths = ["bank_pdfs/sbi_month_wise/sbi_1.pdf", "bank_pdfs/sbi_month_wise/sbi_2.pdf",
+#              "bank_pdfs/sbi_month_wise/sbi_3.pdf","bank_pdfs/sbi_month_wise/sbi_4.pdf",
+#              "bank_pdfs/sbi_month_wise/sbi_5.pdf","bank_pdfs/sbi_month_wise/sbi_6.pdf"]
+# passwords = ["", "", "", "", "", ""]
+# # dates should be in the format dd-mm-yy
+# start_date = ["", "", "", "", "", ""]
+# end_date = ["", "", "", "", "", ""]
+# converter = SingleBankStatementConverter(bank_names, pdf_paths, passwords, start_date, end_date, '00000037039495417',
+#                                          'test.py')
+# converter.start_extraction()
+bank_names = ["SBI"]
 # pdf_paths = ["findaddy/banks/BankState.pdf"]
-pdf_paths = ["bank_pdfs/sbi_month_wise/sbi_1.pdf", "bank_pdfs/sbi_month_wise/sbi_2.pdf",
-             "bank_pdfs/sbi_month_wise/sbi_3.pdf","bank_pdfs/sbi_month_wise/sbi_4.pdf",
-             "bank_pdfs/sbi_month_wise/sbi_5.pdf","bank_pdfs/sbi_month_wise/sbi_6.pdf"]
-passwords = ["", "", "", "", "", ""]
+pdf_paths = ["bank_pdfs/sbi_month_wise/sbi_1.pdf"]
+passwords = [""]
 # dates should be in the format dd-mm-yy
-start_date = ["", "", "", "", "", ""]
-end_date = ["", "", "", "", "", ""]
+start_date = [""]
+end_date = [""]
 converter = SingleBankStatementConverter(bank_names, pdf_paths, passwords, start_date, end_date, '00000037039495417',
                                          'test.py')
 converter.start_extraction()
-
 # !!!!add!!!!!!!!!!
 # account holder name
 # account holder bank name

@@ -828,7 +828,7 @@ class MultipleBankStatementConverter:
 
     def find_names_and_account_numbers_idbi(self, text):
         name_pattern = re.compile(r': (.*)', re.IGNORECASE)
-        account_number_pattern = re.compile(r'account number (\d+)', re.IGNORECASE)
+        account_number_pattern = re.compile(r'A/C NO: (\d+)', re.IGNORECASE)
         names = name_pattern.findall(text)
         account_numbers = account_number_pattern.findall(text)
         if not names:
@@ -1772,7 +1772,11 @@ class MultipleBankStatementConverter:
             bank_name = key
             acc_name = value[0]
             acc_num = value[1]
-            data.append([acc_num, acc_name, bank_name])
+            if acc_num == "None":
+                masked_acc_num = "None"
+            else:
+                masked_acc_num = "X" * (len(acc_num) - 4) + acc_num[-4:]
+            data.append([masked_acc_num, acc_name, bank_name])
 
         name_n_num_df = pd.DataFrame(data, columns=['Account Number', 'Account Name', 'Bank'])
 
