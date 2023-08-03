@@ -18,6 +18,7 @@ from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl import Workbook
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
+from datetime import datetime, timedelta
 
 pd.options.display.float_format = "{:,.2f}".format
 
@@ -810,10 +811,38 @@ class SingleBankStatementConverter:
                 text += page.extract_text()
         return text
 
+    def check_statement_period_monthwise(self, start_date_str, end_date_str):
+        date_format = "%d-%m-%Y"
+        start_date = datetime.strptime(start_date_str, date_format)
+        end_date = datetime.strptime(end_date_str, date_format)
+        if start_date.day != 1:
+            print(f"The statement should start from the first day of a month. Your statement starts on {start_date_str}.")
+        next_day = end_date + timedelta(days=1)
+        if next_day.day != 1:
+            print(f"The statement should end on the last day of a month. Your statement ends on {end_date_str}.")
+        return print("Statement starts from first day of month and ends on last day of month.")
+
+
+    def convert_to_dt_format(self, date_str):
+        formats_to_try = ["%d-%m-%Y", "%d %b %Y", "%d %B %Y", "%d/%m/%Y", "%d/%m/%Y", "%d-%m-%Y", "%d-%b-%Y", "%d/%m/%Y"]
+        for format_str in formats_to_try:
+            try:
+                date_obj = datetime.strptime(date_str, format_str)
+                return date_obj.strftime("%d-%m-%Y")
+            except ValueError:
+                pass
+        raise ValueError("Invalid date format: {}".format(date_str))
+
     def find_names_and_account_numbers_sbi(self, text):
-        # Customize the regex patterns according to your needs
         name_pattern = re.compile(r'Name\s*:\s*([^\n]+)', re.IGNORECASE)
         account_number_pattern = re.compile(r'Account Number\s*:\s*(\d+)', re.IGNORECASE)
+
+        pys = re.compile(r'Statement from (.*)', re.IGNORECASE)
+        date_str = pys.findall(text)[0]
+        start_date_str = self.convert_to_dt_format(date_str.split(" to ")[0])
+        end_date_str = self.convert_to_dt_format(date_str.split(" to ")[1])
+        self.check_statement_period_monthwise(start_date_str, end_date_str)
+
         names = name_pattern.findall(text)
         account_numbers = account_number_pattern.findall(text)
         if not names:
@@ -827,6 +856,17 @@ class SingleBankStatementConverter:
         # Customize the regex patterns according to your needs
         name_pattern = re.compile(r'(?:MR\.|M/S\.)\s*([^\n]+)', re.IGNORECASE)
         account_number_pattern = re.compile(r'Account No\s*:\s*(\d+)', re.IGNORECASE)
+
+        from_index = text.find("From :") + len("From :")
+        start_date = text[from_index + 1: from_index + 11].strip()
+        to_index = text.find("To :") + len("To :")
+        end_date = text[to_index + 1: to_index + 11].strip()
+        complete_date_range = f"{start_date} to {end_date}"
+        date_str = complete_date_range
+        start_date_str = self.convert_to_dt_format(date_str.split(" to ")[0])
+        end_date_str = self.convert_to_dt_format(date_str.split(" to ")[1])
+        self.check_statement_period_monthwise(start_date_str, end_date_str)
+
         names = name_pattern.findall(text)
         account_numbers = account_number_pattern.findall(text)
         if not names:
@@ -842,6 +882,16 @@ class SingleBankStatementConverter:
         names = parts[0].strip().split('\n')
         account_number_pattern = re.compile(r'Account No\s*:\s*(\d+)', re.IGNORECASE)
         account_numbers = account_number_pattern.findall(text)
+
+        date_pattern = r"\d{2}-\d{2}-\d{4}"
+        dates = re.findall(date_pattern, text)
+        start_date, end_date = dates[0], dates[1]
+        complete_date_range = f"{start_date} to {end_date}"
+        date_str = complete_date_range
+        start_date_str = self.convert_to_dt_format(date_str.split(" to ")[0])
+        end_date_str = self.convert_to_dt_format(date_str.split(" to ")[1])
+        self.check_statement_period_monthwise(start_date_str, end_date_str)
+
         if not names:
             names = [None]
         if not account_numbers:
@@ -854,6 +904,42 @@ class SingleBankStatementConverter:
         account_number_pattern = re.compile(r'A/C NO: (\d+)', re.IGNORECASE)
         names = name_pattern.findall(text)
         account_numbers = account_number_pattern.findall(text)
+
+        pys = re.compile(r'A/C STATUS\n(.*)', re.IGNORECASE)
+        py = pys.findall(text)[0]
+        date_pattern = r"\d{2}/\d{2}/\d{4}"
+        dates = re.findall(date_pattern, py)
+        start_date, end_date = dates[0], dates[1]
+        complete_date_range = f"{start_date} to {end_date}"
+        date_str = complete_date_range
+        start_date_str = self.convert_to_dt_format(date_str.split(" to ")[0])
+        end_date_str = self.convert_to_dt_format(date_str.split(" to ")[1])
+        self.check_statement_period_monthwise(start_date_str, end_date_str)
+
+        if not names:
+            names = [None]
+        if not account_numbers:
+            account_numbers = [None]
+        listO = [names[0], account_numbers[0]]
+        return listO
+
+    def find_names_and_account_numbers_bob(self, text):
+        name_pattern = re.compile(r'Savings Account - \S+\s+(.*?)(?:\s|$)')
+        account_number_pattern = re.compile(r'Account No\s*:\s*(\d+)', re.IGNORECASE)
+        names = name_pattern.findall(text)
+        account_numbers = account_number_pattern.findall(text)
+
+        pys = re.compile(r'INR for the period (.*)', re.IGNORECASE)
+        py = pys.findall(text)[0]
+        date_pattern = r"\d{2}/\d{2}/\d{4}"
+        dates = re.findall(date_pattern, py)
+        start_date, end_date = dates[0], dates[1]
+        complete_date_range = f"{start_date} to {end_date}"
+        date_str = complete_date_range
+        start_date_str = self.convert_to_dt_format(date_str.split(" to ")[0])
+        end_date_str = self.convert_to_dt_format(date_str.split(" to ")[1])
+        self.check_statement_period_monthwise(start_date_str, end_date_str)
+
         if not names:
             names = [None]
         if not account_numbers:
@@ -873,18 +959,6 @@ class SingleBankStatementConverter:
         listO = [names[0], account_numbers[0]]
         return listO
 
-    def find_names_and_account_numbers_bob(self, text):
-        name_pattern = re.compile(r'Savings Account - \S+\s+(.*?)(?:\s|$)')
-        account_number_pattern = re.compile(r'Account No\s*:\s*(\d+)', re.IGNORECASE)
-        names = name_pattern.findall(text)
-        account_numbers = account_number_pattern.findall(text)
-        if not names:
-            names = [None]
-        if not account_numbers:
-            account_numbers = [None]
-        listO = [names[0], account_numbers[0]]
-        return listO
-
     def find_names_and_account_numbers_union(self, text):
         name_pattern = re.compile(r'Statement of Account(.*)', re.DOTALL)
         account_number_pattern = re.compile(r'Account No (\d+)', re.IGNORECASE)
@@ -892,6 +966,18 @@ class SingleBankStatementConverter:
         lines = names[0].strip().split('\n')
         names = lines
         account_numbers = account_number_pattern.findall(text)
+
+        pys = re.compile(r'Statement Period From -(.*)', re.IGNORECASE)
+        py = pys.findall(text)[0]
+        date_pattern = r"\d{2}/\d{2}/\d{4}"
+        dates = re.findall(date_pattern, py)
+        start_date, end_date = dates[0], dates[1]
+        complete_date_range = f"{start_date} to {end_date}"
+        date_str = complete_date_range
+        start_date_str = self.convert_to_dt_format(date_str.split(" to ")[0])
+        end_date_str = self.convert_to_dt_format(date_str.split(" to ")[1])
+        self.check_statement_period_monthwise(start_date_str, end_date_str)
+
         if not names:
             names = [None]
         if not account_numbers:
@@ -904,6 +990,17 @@ class SingleBankStatementConverter:
         account_number_pattern = re.compile(r'account number (\d+)', re.IGNORECASE)
         names = name_pattern.findall(text)
         account_numbers = account_number_pattern.findall(text)
+
+        pys = re.compile(r'2. Period: (.*)', re.IGNORECASE)
+        py = pys.findall(text)[0]
+        start_date = datetime.strptime(py[:11], "%d %b %Y").strftime("%d %b %Y")
+        end_date = datetime.strptime(py[-11:], "%d %b %Y").strftime("%d %b %Y")
+        complete_date_range = f"{start_date} to {end_date}"
+        date_str = complete_date_range
+        start_date_str = self.convert_to_dt_format(date_str.split(" to ")[0])
+        end_date_str = self.convert_to_dt_format(date_str.split(" to ")[1])
+        self.check_statement_period_monthwise(start_date_str, end_date_str)
+
         if not names:
             names = [None]
         if not account_numbers:
@@ -916,6 +1013,18 @@ class SingleBankStatementConverter:
         account_number_pattern = re.compile(r'Account:(\d+)', re.IGNORECASE)
         names = name_pattern.findall(text)
         account_numbers = account_number_pattern.findall(text)
+
+        pys = re.compile(r'Statement Period  : (.*)', re.IGNORECASE)
+        py = pys.findall(text)[0]
+        date_pattern = r"\d{2}/\d{2}/\d{4}"
+        dates = re.findall(date_pattern, py)
+        start_date, end_date = dates[0], dates[1]
+        complete_date_range = f"{start_date} to {end_date}"
+        date_str = complete_date_range
+        start_date_str = self.convert_to_dt_format(date_str.split(" to ")[0])
+        end_date_str = self.convert_to_dt_format(date_str.split(" to ")[1])
+        self.check_statement_period_monthwise(start_date_str, end_date_str)
+
         if not names:
             names = [None]
         if not account_numbers:
@@ -927,54 +1036,16 @@ class SingleBankStatementConverter:
         name_pattern = re.compile(r'CUSTOMER NAME(.*)(?=\s*:|$)', re.IGNORECASE)
         names = name_pattern.findall(text)
         account_numbers = text.split('\n')[3:]
-        if not names:
-            names = [None]
-        if not account_numbers:
-            account_numbers = [None]
-        listO = [names[0], account_numbers[0]]
-        return listO
 
-    def find_names_and_account_numbers_indus(self, text):
-        name_pattern = re.compile(r'  \n(.*)', re.IGNORECASE)
-        account_number_pattern = re.compile(r'Account No                          :\n(\d+)', re.IGNORECASE)
-        names = name_pattern.findall(text)
-        account_numbers = account_number_pattern.findall(text)
-        if not names:
-            names = [None]
-        if not account_numbers:
-            account_numbers = [None]
-        listO = [names[0], account_numbers[0]]
-        return listO
+        date_pattern = r"\d{2}-[A-Za-z]{3}-\d{4}"
+        dates = re.findall(date_pattern, text)
+        start_date, end_date = dates[0], dates[1]
+        complete_date_range = f"{start_date} to {end_date}"
+        date_str = complete_date_range
+        start_date_str = self.convert_to_dt_format(date_str.split(" to ")[0])
+        end_date_str = self.convert_to_dt_format(date_str.split(" to ")[1])
+        self.check_statement_period_monthwise(start_date_str, end_date_str)
 
-    def find_names_and_account_numbers_tjsb(self, text):
-        name_pattern = re.compile(r'Name :\n(.*)', re.IGNORECASE)
-        account_number_pattern = re.compile(r'\nX(.*)', re.IGNORECASE)
-        names = name_pattern.findall(text)
-        account_numbers = account_number_pattern.findall(text)
-        if not names:
-            names = [None]
-        if not account_numbers:
-            account_numbers = [None]
-        listO = [names[0], account_numbers[0]]
-        return listO
-
-    def find_names_and_account_numbers_nkgsb(self, text):
-        name_pattern = re.compile(r'(?:MR\.|MRS\.)\s*([^\n]+)', re.IGNORECASE)
-        account_number_pattern = re.compile(r'Account Number : (\d+)', re.IGNORECASE)
-        names = name_pattern.findall(text)
-        account_numbers = account_number_pattern.findall(text)
-        if not names:
-            names = [None]
-        if not account_numbers:
-            account_numbers = [None]
-        listO = [names[0], account_numbers[0]]
-        return listO
-
-    def find_names_and_account_numbers_indian(self, text):
-        name_pattern = re.compile(r'Customer Name  :(.*)(?=\s*CIF\s*:\s*\d+|$)', re.IGNORECASE)
-        account_number_pattern = re.compile(r'Account:(\d+)', re.IGNORECASE)
-        names = name_pattern.findall(text)
-        account_numbers = account_number_pattern.findall(text)
         if not names:
             names = [None]
         if not account_numbers:
@@ -987,6 +1058,94 @@ class SingleBankStatementConverter:
         account_number_pattern = re.compile(r'account number (\d+)', re.IGNORECASE)
         names = name_pattern.findall(text)
         account_numbers = account_number_pattern.findall(text)
+        if not names:
+            names = [None]
+        if not account_numbers:
+            account_numbers = [None]
+        listO = [names[0], account_numbers[0]]
+        return listO
+
+    def find_names_and_account_numbers_indus(self, text):
+        name_pattern = re.compile(r'  \n(.*)', re.IGNORECASE)
+        account_number_pattern = re.compile(r'Account No                          :\n(\d+)', re.IGNORECASE)
+        names = name_pattern.findall(text)
+        account_numbers = account_number_pattern.findall(text)
+
+        pys = re.compile(r'Period                                   :\n(.*)', re.IGNORECASE)
+        date_str = pys.findall(text)[0]
+        start_date_str = self.convert_to_dt_format(date_str.split(" To ")[0])
+        end_date_str = self.convert_to_dt_format(date_str.split(" To ")[1])
+        self.check_statement_period_monthwise(start_date_str, end_date_str)
+
+        if not names:
+            names = [None]
+        if not account_numbers:
+            account_numbers = [None]
+        listO = [names[0], account_numbers[0]]
+        return listO
+
+    def find_names_and_account_numbers_tjsb(self, text):
+        name_pattern = re.compile(r'Name :\n(.*)', re.IGNORECASE)
+        account_number_pattern = re.compile(r'\nX(.*)', re.IGNORECASE)
+        names = name_pattern.findall(text)
+        account_numbers = account_number_pattern.findall(text)
+
+        start_date = re.compile(r'Period :\n(.*)', re.IGNORECASE).findall(text)[0]
+        end_date = re.compile(r'\nTo\n(.*)', re.IGNORECASE).findall(text)[0]
+        complete_date_range = f"{start_date} to {end_date}"
+        date_str = complete_date_range
+        start_date_str = self.convert_to_dt_format(date_str.split(" to ")[0])
+        end_date_str = self.convert_to_dt_format(date_str.split(" to ")[1])
+        self.check_statement_period_monthwise(start_date_str, end_date_str)
+
+        if not names:
+            names = [None]
+        if not account_numbers:
+            account_numbers = [None]
+        listO = [names[0], account_numbers[0]]
+        return listO
+
+    def find_names_and_account_numbers_indian(self, text):
+        name_pattern = re.compile(r'Customer Name  :(.*)(?=\s*CIF\s*:\s*\d+|$)', re.IGNORECASE)
+        account_number_pattern = re.compile(r'Account:(\d+)', re.IGNORECASE)
+        names = name_pattern.findall(text)
+        account_numbers = account_number_pattern.findall(text)
+
+        pys = re.compile(r'From (.*)', re.IGNORECASE)
+        py = pys.findall(text)[0]
+        date_pattern = r"\d{2}/\d{2}/\d{4}"
+        dates = re.findall(date_pattern, py)
+        start_date, end_date = dates[0], dates[1]
+        complete_date_range = f"{start_date} to {end_date}"
+        date_str = complete_date_range
+        start_date_str = self.convert_to_dt_format(date_str.split(" to ")[0])
+        end_date_str = self.convert_to_dt_format(date_str.split(" to ")[1])
+        self.check_statement_period_monthwise(start_date_str, end_date_str)
+
+        if not names:
+            names = [None]
+        if not account_numbers:
+            account_numbers = [None]
+        listO = [names[0], account_numbers[0]]
+        return listO
+
+    def find_names_and_account_numbers_nkgsb(self, text):
+        name_pattern = re.compile(r'(?:MR\.|MRS\.)\s*([^\n]+)', re.IGNORECASE)
+        account_number_pattern = re.compile(r'Account Number : (\d+)', re.IGNORECASE)
+        names = name_pattern.findall(text)
+        account_numbers = account_number_pattern.findall(text)
+
+        pys = re.compile(r'Period : (.*)', re.IGNORECASE)
+        py = pys.findall(text)[0]
+        date_pattern = r"\d{2}-\d{2}-\d{4}"
+        dates = re.findall(date_pattern, py)
+        start_date, end_date = dates[0], dates[1]
+        complete_date_range = f"{start_date} to {end_date}"
+        date_str = complete_date_range
+        start_date_str = self.convert_to_dt_format(date_str.split(" to ")[0])
+        end_date_str = self.convert_to_dt_format(date_str.split(" to ")[1])
+        self.check_statement_period_monthwise(start_date_str, end_date_str)
+
         if not names:
             names = [None]
         if not account_numbers:
