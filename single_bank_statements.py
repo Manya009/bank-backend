@@ -1385,44 +1385,6 @@ class SingleBankStatementConverter:
                 red_df = red_df._append(row, ignore_index=True)
         return red_df
 
-    # for creditor list
-    def creditor_list(self, df):
-        credit_list = pd.DataFrame()
-        for index, row in df.iterrows():
-            debit_amount = pd.to_numeric(row['Debit'], errors='coerce')
-            if debit_amount > 0:
-                credit_list = credit_list._append(row, ignore_index=True)
-        return credit_list
-
-    # for debtor list
-    def debtor_list(self, df):
-        debit_list = pd.DataFrame()
-        for index, row in df.iterrows():
-            credit_amount = pd.to_numeric(row['Credit'], errors='coerce')
-            if credit_amount > 0:
-                debit_list = debit_list._append(row, ignore_index=True)
-        return debit_list
-
-    # for suspense credit
-    def suspense_credit(self, df):
-        c_df = pd.DataFrame()
-        for index, row in df.iterrows():
-            credit_amount = pd.to_numeric(row['Credit'], errors='coerce')
-            arow = row["Category"]
-            if arow == "Suspense" and credit_amount > 0:
-                c_df = c_df._append(row, ignore_index=True)
-        return c_df
-
-    # for suspense debit
-    def suspense_debit(self, df):
-        d_df = pd.DataFrame()
-        for index, row in df.iterrows():
-            debit_amount = pd.to_numeric(row['Debit'], errors='coerce')
-            arow = row["Category"]
-            if arow == "Suspense" and debit_amount > 0:
-                d_df = d_df._append(row, ignore_index=True)
-        return d_df
-
     # for cash withdrawal
     def cash_withdraw(self, df):
         cashw_df = pd.DataFrame()
@@ -1458,6 +1420,84 @@ class SingleBankStatementConverter:
             if arow == "EMI":
                 em_i = em_i._append(row, ignore_index=True)
         return em_i
+
+
+    # for creditor list
+    def creditor_list(self, df):
+        # credit_list = pd.DataFrame()
+        # for index, row in df.iterrows():
+        #     debit_amount = pd.to_numeric(row['Debit'], errors='coerce')
+        #     if debit_amount > 0:
+        #         credit_list = credit_list._append(row, ignore_index=True)
+        # return credit_list
+        debit = df[df['Debit'].notnull()]
+        Creditor_list = debit[
+            debit["Description"].str.contains("BRN-CLG-CHQ") | debit[
+                "Description"].str.contains("NEFT/MB/") | debit["Description"].str.contains("MOB/TPFT") | debit[
+                "Description"].str.contains("NLC INDIA LTD") | debit[
+                "Description"].str.contains("NEFT/MB/AX") | debit[
+                "Description"].str.contains("NLC INDIA LTD") | debit[
+                "Description"].str.contains("MOB/TPFT/") | debit[
+                "Description"].str.contains("INB/") | debit[
+                "Description"].str.contains("BRN-CLG-CHQ") | debit["Description"].str.contains("IMPS") | debit[
+                "Description"].str.contains("IMPS/P2A")]
+        Creditor_list = Creditor_list[~Creditor_list["Description"].str.contains("BILLDESK")]
+        Creditor_list = Creditor_list[~Creditor_list["Description"].str.contains("GST TAX PAYMENT")]
+        Creditor_list = Creditor_list[~Creditor_list["Description"].str.contains("ATOM STOCK BROKER")]
+        Creditor_list = Creditor_list[~Creditor_list["Category"].str.contains("Suspense")]
+        Creditor_list = Creditor_list[~Creditor_list["Category"].str.contains("fastag")]
+        # Creditor_list.drop(['Chq No', 'Credit', 'Balance', 'Init. Br'], axis=1, inplace=True)
+        Creditor_list = Creditor_list.sort_values(by='Category')
+        return Creditor_list
+
+    # for debtor list
+    def debtor_list(self, df):
+        # debit_list = pd.DataFrame()
+        # for index, row in df.iterrows():
+        #     credit_amount = pd.to_numeric(row['Credit'], errors='coerce')
+        #     if credit_amount > 0:
+        #         debit_list = debit_list._append(row, ignore_index=True)
+        # return debit_list
+        credit = df[df['Credit'].notnull()]
+        Debtor_list = credit[
+            credit["Description"].str.contains("NEFT") | credit["Description"].str.contains("IMPS") | credit[
+                "Description"].str.contains("RTGS") | credit[
+                "Description"].str.contains("ECS/") | credit[
+                "Description"].str.contains("MOB/TPFT/")]
+        Debtor_list = Debtor_list[~Debtor_list["Category"].str.contains("Dividend/interest")]
+        Debtor_list = Debtor_list[~Debtor_list["Category"].str.contains('Suspense')]
+        Debtor_list = Debtor_list[~Debtor_list["Category"].str.contains('Redemption of Investment')]
+        Debtor_list = Debtor_list.sort_values(by='Category')
+        return Debtor_list
+
+    #
+    # for suspense credit
+    def suspense_credit(self, df):
+        suspense_cr = df[df["Category"].str.contains("Suspense")].groupby('Credit')
+        suspense_cr = suspense_cr.apply(lambda x: x)
+        return suspense_cr
+        # c_df = pd.DataFrame()
+        # for index, row in df.iterrows():
+        #     credit_amount = pd.to_numeric(row['Credit'], errors='coerce')
+        #     arow = row["Category"]
+        #     if arow == "Suspense" and credit_amount > 0:
+        #         c_df = c_df._append(row, ignore_index=True)
+        # return c_df
+
+    # for suspense debit
+
+
+    def suspense_debit(self, df):
+        suspense_dr = df[df["Category"].str.contains("Suspense")].groupby('Debit')
+        suspense_dr = suspense_dr.apply(lambda x: x)
+        return suspense_dr
+        # d_df = pd.DataFrame()
+        # for index, row in df.iterrows():
+        #     debit_amount = pd.to_numeric(row['Debit'], errors='coerce')
+        #     arow = row["Category"]
+        #     if arow == "Suspense" and debit_amount > 0:
+        #         d_df = d_df._append(row, ignore_index=True)
+        # return d_df
 
     # ***************/-first page summary sheet-/*********************#
 
@@ -2126,9 +2166,9 @@ class SingleBankStatementConverter:
 # converter = SingleBankStatementConverter(bank_names, pdf_paths, passwords, start_date, end_date, '00000037039495417',
 #                                          'test.py')
 # converter.start_extraction()
-bank_names = ["SBI"]
+bank_names = ["Axis"]
 # pdf_paths = ["findaddy/banks/BankState.pdf"]
-pdf_paths = ["bank_pdfs/sbi_month_wise/sbi_1.pdf"]
+pdf_paths = ["bank_pdfs/sbi_month_wise/axis1.pdf"]
 passwords = [""]
 # dates should be in the format dd-mm-yy
 start_date = [""]
