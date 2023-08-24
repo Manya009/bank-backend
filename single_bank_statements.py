@@ -1159,7 +1159,7 @@ class SingleBankStatementConverter:
         print(unlocked_pdf_path)
         text = self.extract_text_from_pdf(unlocked_pdf_path)
 
-        if bank == "Axis":
+        if bank == "AXIS":
             df = pd.DataFrame(self.axis(unlocked_pdf_path))
             acc_name_n_number = self.find_names_and_account_numbers_axis(text)
 
@@ -1227,7 +1227,7 @@ class SingleBankStatementConverter:
         df = df.reset_index(drop=True)
 
         # if df['Value Date'].iloc[0] != start_date and df['Value Date'].iloc[-1] != end_date:
-        #     print("--------@@@@@@@@@@@@@@-----------------------@@@@@@@@@@@@@@-------------")
+        #     print("-------------__________-------------")
         #     raise ValueError("The Start and End Dates provided by the user do not match ...")
 
         return df, acc_name_n_number
@@ -1347,8 +1347,8 @@ class SingleBankStatementConverter:
         return all_df
 
     def category_add(self, df):
-        # df2 = pd.read_excel('findaddy/banks/axis_category.xlsx')
-        df2 = pd.read_excel("category_sheet/multiple_category.xlsx")
+        df2 = pd.read_excel('findaddy/banks/common_category_sheet.xlsx')
+        # df2 = pd.read_excel("category_sheet/multiple_category.xlsx")
 
         category = []
         for desc in df['Description'].str.lower():
@@ -1996,7 +1996,7 @@ class SingleBankStatementConverter:
             bank_name = key
             acc_name = value[0]
             acc_num = value[1]
-            if acc_num == "None":
+            if str(acc_num) == "None":
                 masked_acc_num = "None"
             else:
                 masked_acc_num = "X" * (len(acc_num) - 4) + acc_num[-4:]
@@ -2140,52 +2140,34 @@ class SingleBankStatementConverter:
         print('|------------------------------|')
         print(self.account_number)
         print('|------------------------------|')
-        # file_name = os.path.join('Excel_Files', f'BankStatement_{self.account_number}.xlsx')
-        file_name = "saved_excel/Single_Extracted_statements_file.xlsx"
+        # cleaned_account_number = clean_account_number(self.account_number)
+        #file_name = os.path.join('Excel_Files', f'SingleBankStatement_{self.account_number}.xlsx')
+        file_name = os.path.join('Excel_Files', 'SingleBankStatement.xlsx')
+        # file_name = "TestSingle_Extracted_statements_file.xlsx"
         self.writer = pd.ExcelWriter(file_name, engine='xlsxwriter')
 
         self.Single_Bank_statement(dfs, name_dfs)
         self.writer._save()
 
-        # self.extract_text_from_pdf('sbi.pdf')
 
 
 # """Bank Names should be:
 # "Axis": "IDBI": "SBI": "IDFC": "PNB": "Yes Bank": "Kotak": "Union":
 # "ICICI": "BOB": "IndusInd": "Indian": "TJSB": "NKGSB": "HDFC"
 
-# bank_names = ["SBI", "SBI", "SBI", "SBI", "SBI", "SBI"]
-# # pdf_paths = ["findaddy/banks/BankState.pdf"]
-# pdf_paths = ["bank_pdfs/sbi_month_wise/sbi_1.pdf", "bank_pdfs/sbi_month_wise/sbi_2.pdf",
-#              "bank_pdfs/sbi_month_wise/sbi_3.pdf","bank_pdfs/sbi_month_wise/sbi_4.pdf",
-#              "bank_pdfs/sbi_month_wise/sbi_5.pdf","bank_pdfs/sbi_month_wise/sbi_6.pdf"]
-# passwords = ["", "", "", "", "", ""]
+# bank_names = ["Axis"]
+# pdf_paths = ["findaddy/banks/BankState.pdf"]
+# passwords = [""]
+
 # # dates should be in the format dd-mm-yy
-# start_date = ["", "", "", "", "", ""]
-# end_date = ["", "", "", "", "", ""]
+# start_date = [""]
+# end_date = [""]
 # converter = SingleBankStatementConverter(bank_names, pdf_paths, passwords, start_date, end_date, '00000037039495417',
 #                                          'test.py')
 # converter.start_extraction()
-bank_names = ["Axis"]
-# pdf_paths = ["findaddy/banks/BankState.pdf"]
-pdf_paths = ["bank_pdfs/sbi_month_wise/axis1.pdf"]
-passwords = [""]
-# dates should be in the format dd-mm-yy
-start_date = [""]
-end_date = [""]
-converter = SingleBankStatementConverter(bank_names, pdf_paths, passwords, start_date, end_date, '00000037039495417',
-                                         'test.py')
-converter.start_extraction()
-# !!!!add!!!!!!!!!!
-# account holder name
-# account holder bank name
 
-# bank_names = ["Axis", "SBI"]
-# # pdf_paths = ["findaddy/banks/BankState.pdf"]
-# pdf_paths = ["bank_pdfs/Axis bank AC statement.pdf", "bank_pdfs/sbibank.pdf"]
-# passwords = ["", ""]
-# # dates should be in the format dd-mm-yy
-# start_date = ["04-04-2022", "01-12-2020"]
-# end_date = ["31-03-2023", "19-07-2021"]
-# converter = BankStatementConverter(bank_names, pdf_paths, passwords, start_date, end_date, '00000037039495417',
-#                                    'test.py')
+
+# def clean_account_number(account_number):
+#         # Remove non-digit characters from the account number
+#         cleaned_account_number = re.sub(r'\D', '', account_number)
+#         return cleaned_account_number
